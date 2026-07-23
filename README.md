@@ -51,10 +51,10 @@ Each section’s little-endian 16-bit words **sum to `0xA5A5`** (checksum).
 
 A **new/empty** cartridge has usage sections that look like `A5 A5` followed by zeros. There is **no single “ink level” byte** to clear.
 
-| Method | What it does | Needs empty dump? |
-|--------|----------------|-------------------|
-| **Pico `zero_usage`** | Keeps serial/header; clears usage tables | **No** |
-| **Arduino / Pi clone** | Writes a full image from a new/empty dump | **Yes** |
+| Method | Platforms | Needs empty dump? |
+|--------|-----------|-------------------|
+| **`zero_usage`** (keep serial, clear usage tables) | Pico, Pi Zero W, Arduino Mega/ESP32/R4 | **No** |
+| **Clone dump/write** | All (Arduino Uno OK) | **Yes** |
 
 ---
 
@@ -62,15 +62,13 @@ A **new/empty** cartridge has usage sections that look like `A5 A5` followed by 
 
 ```text
 canon_mc-g02_resetter/
-├── pico/                 # Raspberry Pi Pico (MicroPython) — recommended
-├── pi/                   # Raspberry Pi Zero/3/4 (Linux + smbus2)
-├── sketch_hack_read/     # Arduino dump
-├── sketch_hack_write/    # Arduino write
+├── pico/                 # Pico MicroPython — zero_usage + LED
+├── pi/                   # Pi Zero W — zero-usage + reset failsafe
+├── arduino/
+│   ├── sketch_zero_usage/    # zero_usage (Mega/ESP32/R4/…)
+│   ├── sketch_hack_read/     # classic dump
+│   └── sketch_hack_write/    # classic clone write
 ├── wiki/                 # Platform guides
-│   ├── Home.md
-│   ├── Raspberry-Pi-Pico.md
-│   ├── Raspberry-Pi-Zero-W.md
-│   └── Arduino.md
 └── README.md
 ```
 
@@ -78,9 +76,9 @@ canon_mc-g02_resetter/
 
 ## Quick start
 
-1. **Pico** — [wiki/Raspberry-Pi-Pico.md](wiki/Raspberry-Pi-Pico.md): flash MicroPython, wire with 10k pull-ups, run `MODE = "zero_usage"`.
-2. **Pi Zero W** — [wiki/Raspberry-Pi-Zero-W.md](wiki/Raspberry-Pi-Zero-W.md): enable I2C, dump/write with `pi/mc_g02_resetter.py`.
-3. **Arduino** — [wiki/Arduino.md](wiki/Arduino.md): dump with `sketch_hack_read`, write with `sketch_hack_write`.
+1. **Pico** — [wiki/Raspberry-Pi-Pico.md](wiki/Raspberry-Pi-Pico.md): `MODE = "zero_usage"`.
+2. **Pi Zero W** — [wiki/Raspberry-Pi-Zero-W.md](wiki/Raspberry-Pi-Zero-W.md): `python3 mc_g02_resetter.py zero-usage`.
+3. **Arduino** — [wiki/Arduino.md](wiki/Arduino.md): upload `arduino/sketch_zero_usage` (or classic read/write on Uno).
 
 ---
 

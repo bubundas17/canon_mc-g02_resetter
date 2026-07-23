@@ -1,107 +1,90 @@
 # Arduino guide
 
-Original method from [wangyu-/canon_mc-g02_resetter](https://github.com/wangyu-/canon_mc-g02_resetter): dump the EEPROM with one sketch, later write that image back with another.
+Two approaches:
+
+1. **`sketch_zero_usage`** (recommended) — clear usage tables, keep serial; backup + verify + restore  
+2. **Classic clone** — `sketch_hack_read` / `sketch_hack_write` (needs a virgin dump)
+
+---
+
+## Option A — zero_usage (feature-complete)
+
+Code: [`arduino/sketch_zero_usage/`](https://github.com/bubundas17/canon_mc-g02_resetter/tree/main/arduino/sketch_zero_usage)
+
+Same algorithm as Pico / Pi Zero W:
+
+1. Double-read chip into RAM backup  
+2. Keep header/serial (`0x000–0x07F`)  
+3. Write empty usage layout (`A5 A5` + zeros)  
+4. Verify; on failure rewrite the backup  
+
+### Board requirements
+
+Needs enough SRAM for a 2048-byte backup (about **2.5KB+** free).
+
+| Board | Supported? |
+|-------|------------|
+| Mega, Uno R4, ESP32, RP2040 (Arduino core), many ARM boards | Yes |
+| Classic **Uno / Nano (ATmega328P)** | **No** — sketch refuses to compile; use Pico or Mega |
+
+### Wiring
+
+| Chip pad | Arduino |
+|----------|---------|
+| VCC | 5V or 3.3V (M24C16-R accepts both; match pull-up rail) |
+| GND | GND |
+| SDA | SDA (A4 on Uno-class) |
+| SCL | SCL (A5 on Uno-class) |
+
+Add **2× 10kΩ** pull-ups from SDA and SCL to VCC.
+
+### Usage
+
+1. Open `arduino/sketch_zero_usage/sketch_zero_usage.ino`  
+2. Select a supported board + port  
+3. Upload  
+4. Open Serial Monitor at **115200** baud  
+5. Connect the chip (or reset the board after connecting)  
+6. Wait for `OK — usage cleared...` / `DONE`
+
+On verify failure you should see failsafe restore messages; chip returns to the pre-write image.
+
+---
+
+## Option B — classic clone (original)
 
 Code:
 
-- [`sketch_hack_read/`](https://github.com/bubundas17/canon_mc-g02_resetter/tree/main/sketch_hack_read)
-- [`sketch_hack_write/`](https://github.com/bubundas17/canon_mc-g02_resetter/tree/main/sketch_hack_write)
+- [`arduino/sketch_hack_read/`](https://github.com/bubundas17/canon_mc-g02_resetter/tree/main/arduino/sketch_hack_read)
+- [`arduino/sketch_hack_write/`](https://github.com/bubundas17/canon_mc-g02_resetter/tree/main/arduino/sketch_hack_write)
 
-> This is a **clone** reset: you need a ROM dumped from a **new/empty** cartridge (or a known-good empty image).  
-> If you do not have one, use the [Raspberry Pi Pico](Raspberry-Pi-Pico.md) `zero_usage` mode instead.
+Works on classic Uno/Nano. You **must** dump a new/empty cartridge first.
 
----
+### Dump (`sketch_hack_read`)
 
-## What you need
+1. Upload **before** connecting the chip when possible  
+2. Connect chip  
+3. Serial Monitor @ **9600** baud  
+4. Copy `my_rom1[]` (2048 bytes)  
+5. Dump **twice**; confirm identical  
 
-- Arduino with I2C (Uno, Nano, etc.)
-- Arduino IDE
-- 2× **10kΩ** pull-up resistors
-- Wires to the cartridge chip pads
+### Write (`sketch_hack_write`)
 
----
+1. Paste `my_rom1[]` into the sketch  
+2. Upload and run  
+3. Confirm verification dump matches  
 
-## Wiring
-
-| Chip pad | Arduino Uno / Nano |
-|----------|---------------------|
-| VCC | 5V or 3.3V (match your board / chip tolerance; M24C16-R accepts both) |
-| GND | GND |
-| SDA | SDA (**A4** on Uno) |
-| SCL | SCL (**A5** on Uno) |
-
-Pull-ups:
-
-```text
-VCC ----[10k]---- SDA ---- chip SDA
-VCC ----[10k]---- SCL ---- chip SCL
-```
-
-Upload the **read** sketch **before** connecting the chip when possible, so the running firmware is known-good at first contact.
-
-Wiring photos from the original project: [upstream wiki](https://github.com/wangyu-/canon_mc-g02_resetter/wiki).
+Wiring photos: [upstream wiki](https://github.com/wangyu-/canon_mc-g02_resetter/wiki).
 
 ---
 
-## Dump the ROM (`sketch_hack_read`)
+## Which should I use?
 
-1. Open `sketch_hack_read/sketch_hack_read.ino` in Arduino IDE.
-2. Select board + port, upload.
-3. Connect the chip.
-4. Open **Serial Monitor** at **9600** baud.
-5. You should see a C array, 2048 bytes:
-
-```text
-const unsigned char my_rom1[] PROGMEM=
-{
-0xXX,0xXX,...
-};
-```
-
-6. Dump **twice** and confirm both dumps are identical.
-7. Save the array for later (this is your reset image if dumped while empty/new).
-
-If you see `Wire Not Ready!!!`, fix wiring/contacts/pull-ups.
-
----
-
-## Write / reset (`sketch_hack_write`)
-
-1. Open `sketch_hack_write/sketch_hack_write.ino`.
-2. Paste your saved `my_rom1[]` array in place of the placeholder comment.
-3. Upload and run with the chip connected.
-4. Serial output shows page progress, then a verification dump.
-5. Confirm the verification dump matches the ROM you wrote (eyeball or `diff` / `vimdiff`).
-
-The sketch writes in **16-byte pages** with a short delay (M24C16 page program), then reads back all 2048 bytes.
-
----
-
-## How the sketches work
-
-Both use the Arduino `Wire` (I2C) library against base address `0x50`.
-
-- High bits of the byte offset go into the I2C address (`0x50`…`0x57`).
-- Low 8 bits are the word address inside that block.
-
-**Read** loops `0 … 2047` and prints hex.  
-**Write** pages the pasted image, then dumps for verify.
-
-There is no “set counter to 0” logic — only full-image clone.
-
----
-
-## Workflow summary
-
-```text
-New/empty chip  --read-->  my_rom1 dump  --save-->
-Full chip       --write my_rom1-->  printer sees empty again
-```
-
-1. Dump early (while cartridge is still empty/new).
-2. Clean sponge when full.
-3. Write the saved dump.
-4. Verify, reinstall.
+| Goal | Sketch |
+|------|--------|
+| Reset without a virgin dump | **`sketch_zero_usage`** (Mega / ESP32 / R4 / …) |
+| Only have a classic Uno + empty dump | `sketch_hack_read` + `sketch_hack_write` |
+| Want simplest hardware path | [Raspberry Pi Pico](Raspberry-Pi-Pico.md) |
 
 ---
 
@@ -109,10 +92,10 @@ Full chip       --write my_rom1-->  printer sees empty again
 
 | Symptom | Check |
 |---------|--------|
-| `Wire Not Ready!!!` | SDA/SCL/VCC/GND, 10k pull-ups, solid contacts |
-| Dumps differ between runs | Bad wiring; dump again until two match |
-| Write verify mismatch | Power/contacts; retry; confirm `my_rom1` pasted correctly |
-| Printer rejects cartridge | Some firmware dislikes foreign serials; try Pico `zero_usage` keeping original header |
+| Compile error about ATmega328P RAM | Use Mega/ESP32/R4 or Pico |
+| Read fail / Wire errors | SDA/SCL/VCC/GND, 10k pull-ups |
+| Double-read mismatch | Contacts / wiring |
+| Verify failed + restore | Chip left as before; fix wiring and retry |
 
 ---
 

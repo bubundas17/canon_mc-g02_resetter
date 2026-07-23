@@ -57,7 +57,7 @@ Those two resistors are of 10k ohm, used as "pull-up" resistors. The circuit is 
 
 #### Dump the rom (if you can't get a rom from others)
 
-Open the program inside `sketch_hack_read` with Arduino IDE, upload it to Arduino and run. 
+Open the program inside `arduino/sketch_hack_read` with Arduino IDE, upload it to Arduino and run. 
 
 If everything is as expected, you will get the following output from Serial Monitor (use baud rate `9600`):
  
@@ -83,11 +83,11 @@ It's <del>suggested</del> mandatory to dump it 2 times, and make sure the 2 dump
 
 ##### Note2
 
-It's strongly suggested to upload the `sketch_hack_read` program to your Arduino before you connect the cartridge chip into the circuit. So that you are sure at the moment you connect your chip, the program running on arduino is indeed the correct one.
+It's strongly suggested to upload the `arduino/sketch_hack_read` program to your Arduino before you connect the cartridge chip into the circuit. So that you are sure at the moment you connect your chip, the program running on arduino is indeed the correct one.
 
 #### Write the dumped rom to chip
 
-Open the program inside `sketch_hack_write` with Arduino IDE,  You copy the whole `const unsigned char my_rom1[] PROGMEM={0xXX,0xXX,0xXX,0xXX,...}`,  and paste it into the correct place of the program opened in Arduino IDE(there is an indicator to help you locate the place).
+Open the program inside `arduino/sketch_hack_write` with Arduino IDE,  You copy the whole `const unsigned char my_rom1[] PROGMEM={0xXX,0xXX,0xXX,0xXX,...}`,  and paste it into the correct place of the program opened in Arduino IDE(there is an indicator to help you locate the place).
 
 
 upload it to Arduino and run. If everything is as expected, you will get the following output from Serial Monitor (baud rate 9600):

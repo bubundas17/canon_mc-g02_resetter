@@ -7,15 +7,15 @@ Reset the EEPROM chip on a Canon **MC-G02** / **MC-G01** maintenance cartridge s
 | Guide | Best for | Needs empty ROM dump? |
 |-------|----------|------------------------|
 | [Raspberry Pi Pico](Raspberry-Pi-Pico.md) | Easiest; LED feedback; recommended | **No** (`zero_usage`) |
-| [Raspberry Pi Zero W](Raspberry-Pi-Zero-W.md) | Headless Pi + Python | Yes (clone dump/write) |
-| [Arduino](Arduino.md) | Original method | Yes (clone dump/write) |
+| [Raspberry Pi Zero W](Raspberry-Pi-Zero-W.md) | Headless Pi + Python | **No** (`zero-usage`) |
+| [Arduino](Arduino.md) | Mega/ESP32/R4 `zero_usage`, or Uno clone | **No** with `sketch_zero_usage` |
 
 ## Quick background
 
 The printer does not measure waste-ink volume. It reads a counter/log stored in an **M24C16** I2C EEPROM (2048 bytes) on the cartridge. Cleaning the sponge alone does not clear that chip.
 
-- **Pico `zero_usage`:** keeps the chip serial/header, clears usage tables to the empty layout.
-- **Arduino / Pi clone:** write back a ROM image dumped from a new/empty cartridge.
+- **`zero_usage` / `zero-usage`:** keeps the chip serial/header, clears usage tables (Pico, Pi, Arduino Mega/ESP32/…).
+- **Clone dump/write:** write back a ROM image dumped from a new/empty cartridge (optional path on all platforms).
 
 ## Safety
 
