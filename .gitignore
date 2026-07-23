@@ -1,0 +1,15 @@
+# EEPROM dumps / binary images (do not publish cartridge ROMs)
+*.bin
+
+# MicroPython / board firmware images
+*.uf2
+
+# Editor / OS junk
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+.thonny/
