@@ -4,8 +4,14 @@ Reset the chip on a Canon **MC-G02** (and compatible) maintenance cartridge so y
 
 <img src="https://github.com/wangyu-/canon_mc-g02_resetter/blob/ee0e90a86b5609ec6eb443d971a5ddca6e544e4c/images/for_readme.jpg" width="500">
 
-Original Arduino method: [Wiki](https://github.com/wangyu-/canon_mc-g02_resetter/wiki)  
-This repo also includes **Raspberry Pi Pico** (recommended) and **Raspberry Pi** Python tools.
+## Platform guides (wiki)
+
+| Platform | Guide |
+|----------|--------|
+| **Raspberry Pi Pico** (recommended) | [wiki/Raspberry-Pi-Pico.md](wiki/Raspberry-Pi-Pico.md) |
+| **Raspberry Pi Zero W** | [wiki/Raspberry-Pi-Zero-W.md](wiki/Raspberry-Pi-Zero-W.md) |
+| **Arduino** (original) | [wiki/Arduino.md](wiki/Arduino.md) |
+| Overview | [wiki/Home.md](wiki/Home.md) |
 
 ---
 
@@ -19,7 +25,7 @@ This project talks to that chip over **I2C** and rewrites it so the printer trea
 
 ### Compatible cartridges / printers
 
-**MC-G02** (and often **MC-G01** with the same sketches), used on printers such as:
+**MC-G02** (and often **MC-G01** with the same tools), used on printers such as:
 
 | Region | Examples |
 |--------|----------|
@@ -43,21 +49,12 @@ The EEPROM is **2048 bytes** (M24C16), laid out roughly as:
 
 Each section’s little-endian 16-bit words **sum to `0xA5A5`** (checksum).
 
-A **new/empty** cartridge has usage sections that look like:
-
-- first two bytes: `A5 A5`
-- remaining bytes: `00`
-
-There is **no single “ink level” byte** to set to zero. Usage is an encoded log that grows as the printer runs cleanings. Almost the whole usage area changes over time.
-
-### Reset strategies
+A **new/empty** cartridge has usage sections that look like `A5 A5` followed by zeros. There is **no single “ink level” byte** to clear.
 
 | Method | What it does | Needs empty dump? |
 |--------|----------------|-------------------|
-| **`zero_usage` (Pico)** | Keeps this chip’s serial/header; clears usage tables to empty layout + valid checksums | **No** |
-| **Clone dump** (Arduino / `fresh.bin`) | Writes a full image dumped from a new/empty chip | **Yes** |
-
-`zero_usage` is the easiest path if you do not have a virgin cartridge dump.
+| **Pico `zero_usage`** | Keeps serial/header; clears usage tables | **No** |
+| **Arduino / Pi clone** | Writes a full image from a new/empty dump | **Yes** |
 
 ---
 
@@ -65,216 +62,44 @@ There is **no single “ink level” byte** to set to zero. Usage is an encoded 
 
 ```text
 canon_mc-g02_resetter/
-├── sketch_hack_read/          # Arduino: dump EEPROM → Serial
-├── sketch_hack_write/         # Arduino: write pasted dump → chip
-├── pico/                      # Raspberry Pi Pico (MicroPython) — recommended
-│   ├── main.py                # Auto-start loop on boot
-│   └── mc_g02_resetter.py     # Read / zero_usage / reset / LED UI
-├── pi/                        # Raspberry Pi Zero/3/4 (Linux + smbus2)
-│   ├── mc_g02_resetter.py
-│   └── requirements.txt
-├── wifi/Home.md               # Original wiki-style docs
+├── pico/                 # Raspberry Pi Pico (MicroPython) — recommended
+├── pi/                   # Raspberry Pi Zero/3/4 (Linux + smbus2)
+├── sketch_hack_read/     # Arduino dump
+├── sketch_hack_write/    # Arduino write
+├── wiki/                 # Platform guides
+│   ├── Home.md
+│   ├── Raspberry-Pi-Pico.md
+│   ├── Raspberry-Pi-Zero-W.md
+│   └── Arduino.md
 └── README.md
 ```
 
 ---
 
-## Recommended: Raspberry Pi Pico
+## Quick start
 
-Works well, cheap, USB-powered. Default mode clears usage tables **without** needing a fresh ROM file.
-
-### What you need
-
-- Raspberry Pi Pico (or Pico H) with **MicroPython**
-- 2× **10kΩ** resistors (I2C pull-ups — required on Pico)
-- Jumper wires / soldering to the cartridge chip pads
-- Thonny IDE (or any MicroPython tool)
-
-### Flash MicroPython
-
-1. Hold **BOOTSEL**, plug Pico into USB, release BOOTSEL  
-2. Copy a Pico UF2 (e.g. from [micropython.org](https://micropython.org/download/RPI_PICO/)) onto the `RPI-RP2` drive  
-3. Pico reboots into MicroPython  
-
-### Wiring
-
-| Chip pad | Pico | Notes |
-|----------|------|--------|
-| VCC | **3V3** (pin 36) | Use 3.3V only — not VBUS/5V |
-| GND | **GND** (pin 38) | |
-| SDA | **GP4** (pin 6) | |
-| SCL | **GP5** (pin 7) | |
-| — | 10k from SDA → 3V3 | Pull-up |
-| — | 10k from SCL → 3V3 | Pull-up |
-
-```text
-3V3 ----[10k]---- SDA ---- chip SDA
-3V3 ----[10k]---- SCL ---- chip SCL
-3V3 -------------- chip VCC
-GND -------------- chip GND
-```
-
-### Install the scripts
-
-In Thonny:
-
-1. **View → Files**
-2. Save both files **onto the Pico**:
-   - `pico/mc_g02_resetter.py`
-   - `pico/main.py`
-3. Soft-reboot / power-cycle the Pico (`main.py` starts the loop automatically)
-
-Or open `mc_g02_resetter.py` and click **Run**.
-
-### Modes (`MODE` in `mc_g02_resetter.py`)
-
-```python
-MODE = "zero_usage"   # default — clear usage, keep serial
-```
-
-| Mode | Purpose |
-|------|---------|
-| `zero_usage` | Read → backup → clear usage tables → verify (restore on failure) |
-| `dump` | Read chip → `backup.bin` only |
-| `capture_fresh` | Save a real new/empty chip as `fresh.bin` |
-| `reset` | Write `fresh.bin` onto chip (clone method) |
-| `write` | Write `fresh.bin` without the full clone failsafe flow |
-
-### LED feedback (onboard GP25)
-
-| Pattern | Meaning |
-|---------|---------|
-| Blink | Ready — waiting for chip |
-| Solid | Working (read / write / verify) |
-| 5 short flashes, then off | Done — success |
-| 2 blink → pause → 2 blink | Error |
-| Solid after error | Restoring `backup.bin` |
-| 10 fast flashes, then off | Restore finished |
-
-### Typical Pico workflow
-
-1. Remove cartridge from printer; remove / expose the chip  
-2. Wire chip to Pico (pull-ups on)  
-3. Power Pico — LED blinks (ready)  
-4. Connect chip — LED goes solid, then **5 flashes** if OK  
-5. Clean/dry the sponge if needed; reinstall chip + cartridge  
-6. Printer should report maintenance cartridge empty / OK  
-
-**Failsafe:** before writing, the Pico saves `backup.bin`. If verify fails, it restores the backup automatically.
-
-### REPL helpers (optional)
-
-```python
-import mc_g02_resetter as r
-r.scan()
-r.dump("check.bin")
-r.run_loop()          # same as main loop
-```
-
----
-
-## Arduino (original method)
-
-Requires a dump from a **new/empty** cartridge (or a known-good empty image), then write that image back later.
-
-### Prerequisites
-
-- Arduino with I2C (e.g. Uno: SDA/SCL = A4/A5)
-- Two **10kΩ** pull-ups on SDA and SCL to VCC
-- Arduino IDE
-
-### Wiring
-
-Same chip pads: **VCC, GND, SDA, SCL** + 10k pull-ups to VCC.  
-See images in the [Wiki](https://github.com/wangyu-/canon_mc-g02_resetter/wiki).
-
-### Dump (`sketch_hack_read`)
-
-1. Upload `sketch_hack_read` **before** connecting the chip (safer)  
-2. Connect chip  
-3. Serial Monitor @ **9600** baud  
-4. Copy the printed `my_rom1[]` array (2048 bytes)  
-5. Dump **twice** and confirm both dumps match  
-
-### Write / reset (`sketch_hack_write`)
-
-1. Paste the saved array into `sketch_hack_write.ino` as `my_rom1[]`  
-2. Upload and run  
-3. Sketch writes in 16-byte pages, then dumps again for verification  
-4. Confirm the verification dump matches your source ROM  
-
----
-
-## Raspberry Pi (Zero / 3 / 4 / 5)
-
-Linux + `smbus2`. Pi Zero W has onboard I2C pull-ups on GPIO2/3 — external 10k often optional.
-
-### Setup
-
-```bash
-sudo raspi-config   # Interface Options → I2C → Enable
-cd pi
-pip3 install -r requirements.txt
-```
-
-### Wiring (Pi Zero / header)
-
-| Chip | Pi |
-|------|-----|
-| VCC | 3.3V (pin 1) |
-| GND | GND (pin 6) |
-| SDA | GPIO2 (pin 3) |
-| SCL | GPIO3 (pin 5) |
-
-### Commands
-
-```bash
-python3 mc_g02_resetter.py scan
-python3 mc_g02_resetter.py dump -o rom.bin
-python3 mc_g02_resetter.py dump -o rom.c --format c
-python3 mc_g02_resetter.py write -i rom.bin    # clone write + verify
-python3 mc_g02_resetter.py verify -i rom.bin
-```
-
-The Pi script is a **clone dump/write** tool (like the Arduino sketches). For header-preserving empty reset without a virgin dump, use the **Pico `zero_usage`** mode.
+1. **Pico** — [wiki/Raspberry-Pi-Pico.md](wiki/Raspberry-Pi-Pico.md): flash MicroPython, wire with 10k pull-ups, run `MODE = "zero_usage"`.
+2. **Pi Zero W** — [wiki/Raspberry-Pi-Zero-W.md](wiki/Raspberry-Pi-Zero-W.md): enable I2C, dump/write with `pi/mc_g02_resetter.py`.
+3. **Arduino** — [wiki/Arduino.md](wiki/Arduino.md): dump with `sketch_hack_read`, write with `sketch_hack_write`.
 
 ---
 
 ## Safety notes
 
-1. Use **3.3V** on Pico/Pi. Do not feed 5V into the chip from those boards.  
-2. Always keep a backup dump (`backup.bin` / Arduino serial dump) before experimenting.  
-3. Dump twice and compare when capturing important images.  
-4. Clean/dry the physical cartridge; resetting the chip alone does not remove ink.  
-5. Some printers/firmware may reject foreign cloned serials; `zero_usage` avoids that by keeping the chip’s own header.  
-6. This project is unofficial and unsupported by Canon. Use at your own risk.
-
----
-
-## Q&A
-
-**Why didn’t dump alone reset the cartridge?**  
-Dump only reads. Reset requires writing an empty layout (`zero_usage`) or cloning a fresh dump.
-
-**Can I reset by zeroing one counter byte?**  
-No. Usage is a large encoded log with checksums, not a single level field.
-
-**Do I need a brand-new cartridge for Pico `zero_usage`?**  
-No. That mode builds the empty usage pattern from the chip you plug in.
-
-**Why pull-ups?**  
-I2C needs them. Pico: add 10k. Pi Zero W default I2C pins: usually already pulled up on-board. Arduino: add 10k.
-
-**MC-G01?**  
-Users report the same Arduino flow works for MC-G01. Pico `zero_usage` uses the same empty-section layout; verify on your printer.
+1. Use **3.3V** on Pico/Pi for the chip. Do not feed 5V from those boards.
+2. Keep a backup dump before experimenting.
+3. Dump twice and compare when capturing important images.
+4. Clean/dry the physical cartridge; resetting the chip alone does not remove ink.
+5. Some printers reject foreign cloned serials; Pico `zero_usage` keeps the chip’s own header.
+6. Unofficial and unsupported by Canon. Use at your own risk.
 
 ---
 
 ## Credits
 
-- Original Arduino project: [wangyu-/canon_mc-g02_resetter](https://github.com/wangyu-/canon_mc-g02_resetter)  
-- EEPROM layout / checksum notes from community discussion ([issue #2](https://github.com/wangyu-/canon_mc-g02_resetter/issues/2))  
-- References in the original wiki: ST M24C16 datasheet, Arduino 24Cxx examples  
+- Original Arduino project: [wangyu-/canon_mc-g02_resetter](https://github.com/wangyu-/canon_mc-g02_resetter)
+- EEPROM layout / checksum notes: [issue #2](https://github.com/wangyu-/canon_mc-g02_resetter/issues/2)
+- ST M24C16 datasheet and community 24Cxx Arduino examples
 
 ## License
 
